@@ -53,8 +53,8 @@ Provide dotenv values for the following values. Google your self !!!
 
 ```
 # .env
-VAVOO_AUTH=YOUR_AUTH (see vavvo homepage)
-BUNDLE_URL=URL (hint: its just an m3u8)
+VAVOO_VEC=YOUR_AUTH (google it)
+BUNDLE_URL=URL (hint: its just a m3u8)
 ```
 
 Download channel via browser open it via you favorite application; best use with VLC via network stream
