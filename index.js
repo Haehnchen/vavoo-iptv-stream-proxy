@@ -5,8 +5,12 @@ const request = require('request');
 
 const app = express();
 const port = process.env.HTTP_PORT || 8888;
-const vavooAuth = process.env.VAVOO_AUTH;
+const vavooPingUrl = process.env.VAVOO_PING_URL;
+const vavooVec = process.env.VAVOO_VEC;
 const bundleUrl = process.env.BUNDLE_URL;
+
+const NodeCache = require("node-cache");
+const cache = new NodeCache();
 
 function chunks(array, size) {
     const results = [];
@@ -53,12 +57,51 @@ function getChannels() {
     });
 }
 
-function getQueryAuthParameter() {
+function getQueryAuthParameter(signature) {
     return {
         n: 1,
         b: 5,
-        vavoo_auth: vavooAuth,
+        vavoo_auth: signature,
     };
+}
+
+async function getSignature() {
+    const CACHE_KEY = 'vavoo_signature';
+
+    const value = cache.get(CACHE_KEY);
+    if (value !== undefined) {
+        return value;
+    }
+
+    return new Promise(function (myResolve, myReject) {
+        request.post({
+            url: vavooPingUrl,
+            body: {"vec": vavooVec},
+            json: true
+        }, (err, res, body) => {
+            if (err) {
+                console.log('vavoo_signature ping error: ', err);
+                myReject();
+                return;
+            }
+
+            if (!body?.response?.signed) {
+                console.log('vavoo_signature unknown response: ' + JSON.stringify(body));
+                myReject();
+            }
+
+            const signed = body.response.signed;
+
+            // trust ping for re-auth e.g. 5min, but reduce it a bit
+            const nextPing = body?.response?.nextPing || (60 * 5 * 1000);
+            const ourNextPing = Math.round(nextPing / 1000 * 0.98);
+
+            console.log(`new vavoo_signature signature: next ping in ${(ourNextPing / 60).toFixed(1)} minutes`);
+            cache.set(CACHE_KEY, signed, ourNextPing);
+
+            myResolve(signed)
+        });
+    });
 }
 
 app.get('/channels.m3u8', async function (req, res) {
@@ -107,7 +150,7 @@ app.get('/stream/:id', async function (req, res) {
     }
 
     if (userAgent.toLowerCase().includes('vavoo')) {
-        const searchParams = new URLSearchParams(getQueryAuthParameter());
+        const searchParams = new URLSearchParams(getQueryAuthParameter(await getSignature()));
 
         const redirectUrl = channel.url + '?' + searchParams.toString();
         console.log(`[${connId}] user-agent valid "${userAgent}" "${channel.name}" redirecting: ${redirectUrl}`);
@@ -117,7 +160,7 @@ app.get('/stream/:id', async function (req, res) {
     }
 
     const st = request({
-        qs: getQueryAuthParameter(),
+        qs: getQueryAuthParameter(await getSignature()),
         uri: channel.url,
         headers: {
             "User-Agent": "VAVOO/2.6",
