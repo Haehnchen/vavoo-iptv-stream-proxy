@@ -53,9 +53,10 @@ Provide dotenv values for the following values. Google your self !!!
 
 ```
 # .env
-VAVOO_VEC=YOUR_AUTH (google it)
 BUNDLE_URL=URL (hint: its just a m3u8)
 ```
+
+All `vavookeys` (google it) need to be put into the root directory near by `index.js`
 
 Download channel via browser open it via you favorite application; best use with VLC via network stream
 

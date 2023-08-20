@@ -2,11 +2,12 @@ require('dotenv').config();
 
 const express = require('express');
 const request = require('request');
+const fs = require("fs");
+const https = require("https");
 
 const app = express();
 const port = process.env.HTTP_PORT || 8888;
 const vavooPingUrl = process.env.VAVOO_PING_URL;
-const vavooVec = process.env.VAVOO_VEC;
 const bundleUrl = process.env.BUNDLE_URL;
 
 const NodeCache = require("node-cache");
@@ -18,6 +19,33 @@ function chunks(array, size) {
         results.push(array.splice(0, size));
     }
     return results;
+}
+
+function getRandomLine(filename){
+    const data = fs.readFileSync(filename, "utf8");
+    const lines = data.split('\n');
+    return lines[Math.floor(Math.random()*lines.length)].trim();
+}
+
+function getRedirectLocation(url) {
+    // return a promise
+    return new Promise((resolve) => {
+        const req = https.request(url, (res) => {
+            let body = '';
+
+            res.on('data', (chunk) => {
+                body += chunk;
+            })
+            res.on('end', () => {
+                resolve(res.headers.location || undefined);
+            })
+            res.on('error', function(e) {
+                console.log('location redirect check issue');
+                resolve(undefined);
+            });
+        })
+        req.end();
+    });
 }
 
 let urls = undefined;
@@ -34,21 +62,15 @@ function getChannels() {
             console.log('channels loaded')
 
             const urls = [];
-
-            const nevers = chunks(body.split(/\r?\n/), 2);
-
-            nevers.forEach(line => {
-                const arr = /(\d+).ts$/.exec(line[1]);
-                const arr2 = /tvg-name="([^"]*)"/.exec(line[0]);
-                const groupTitle = /group-title="([^"]*)"/.exec(line[0]);
-                if (!groupTitle || !groupTitle[1] || groupTitle[1].toLowerCase() !== 'germany') {
+            body.forEach((line, index) => {
+                if (line.group.toLowerCase() !== 'germany') {
                     return;
                 }
 
                 urls.push({
-                    id: arr[1],
-                    url: line[1],
-                    name: arr2[1]
+                    id: index,
+                    url: line.url,
+                    name: line.name
                 })
             });
 
@@ -74,6 +96,8 @@ async function getSignature() {
     }
 
     return new Promise(function (myResolve, myReject) {
+        const vavooVec = getRandomLine(__dirname + '/vavookeys');
+
         request.post({
             url: vavooPingUrl,
             body: {"vec": vavooVec},
@@ -154,6 +178,15 @@ app.get('/stream/:id', async function (req, res) {
 
         const redirectUrl = channel.url + '?' + searchParams.toString();
         console.log(`[${connId}] user-agent valid "${userAgent}" "${channel.name}" redirecting: ${redirectUrl}`);
+
+        // first call is a redirect and attached to the client IP, doing this allows open it without IP check.
+        const redirectLocation = await getRedirectLocation(redirectUrl);
+        if (redirectLocation) {
+            console.log(`[${connId}] user-agent valid "${userAgent}" "${channel.name}" found another redirect: ${redirectLocation}`);
+
+            res.redirect(redirectLocation);
+            return;
+        }
 
         res.redirect(redirectUrl);
         return;
