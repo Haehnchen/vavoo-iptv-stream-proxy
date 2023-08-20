@@ -4,6 +4,7 @@ const express = require('express');
 const request = require('request');
 const fs = require("fs");
 const https = require("https");
+const readline = require('readline');
 
 const app = express();
 const port = process.env.HTTP_PORT || 8888;
@@ -21,10 +22,48 @@ function chunks(array, size) {
     return results;
 }
 
-function getRandomLine(filename){
-    const data = fs.readFileSync(filename, "utf8");
-    const lines = data.split('\n');
-    return lines[Math.floor(Math.random()*lines.length)].trim();
+/**
+ * Memory less consumption of a file line
+ */
+async function getRandomLine(filename){
+    const rl = readline.createInterface({
+        input: fs.createReadStream(filename),
+        crlfDelay: Infinity
+    });
+
+    let linesCount = 0;
+    for await (const line of rl) {
+        linesCount += 1;
+    }
+
+    rl.close();
+
+    const rl1 = readline.createInterface({
+        input: fs.createReadStream(filename),
+        crlfDelay: Infinity
+    });
+
+    const wantLine = Math.floor(Math.random() * linesCount);
+
+    let gotLine = 0;
+    let myLine = undefined;
+    rl1.on('line', (line) => {
+        if (gotLine === wantLine) {
+            myLine = line
+        }
+        gotLine += 1;
+    });
+
+    let currentLine = 0;
+    for await (const line of rl1) {
+        if (wantLine === currentLine) {
+            rl1.close();
+        }
+
+        currentLine += 1;
+    }
+
+    return myLine.trim();
 }
 
 function getRedirectLocation(url) {
@@ -95,8 +134,8 @@ async function getSignature() {
         return value;
     }
 
-    return new Promise(function (myResolve, myReject) {
-        const vavooVec = getRandomLine(__dirname + '/vavookeys');
+    return new Promise(async function (myResolve, myReject) {
+        const vavooVec = await getRandomLine(__dirname + '/vavookeys');
 
         request.post({
             url: vavooPingUrl,
