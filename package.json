@@ -1,11 +1,10 @@
 {
   "dependencies": {
-    "dotenv": "^16.0.1",
-    "express": "^4.18.1",
-    "request": "^2.88.2",
+    "commander": "^14.0.3",
+    "express": "^5.2.1",
     "node-cache": "^5.1.2"
   },
   "engines": {
-    "node": ">=16"
+    "node": ">=24"
   }
 }
