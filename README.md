@@ -8,7 +8,7 @@ This project exposes a small local proxy for Vavoo live streams through these en
 
 The proxy keeps the local interface stable and resolves the actual Vavoo stream URL when playback starts.
 
-The proxy is optional for playback streaming. If your player can send the required `User-Agent` from the playlist, it redirects directly. Otherwise, the proxy forwards the stream.
+Playback streaming uses the local proxy by default, keeping upstream stream handling inside this Node process.
 
 ## How It Works
 
@@ -44,6 +44,7 @@ All configuration is done through CLI parameters.
 - `--vavoo-language`: language sent to the Vavoo APIs, default `de`, optional example: `en`
 - `--vavoo-region`: region sent to the Vavoo APIs, default `US` for a broad catalog, optional `DE` which tends to prefilter strongly toward Germany
 - `--vavoo-url-list`: built-in URL selection, one of `primary`, `fallback`, or `both`, default `both`
+- `--redirect`: redirect VAVOO user agents directly to resolved upstream URLs instead of proxying them, default disabled
 
 ## Extended Example
 
@@ -106,5 +107,7 @@ http://<http-host>:<http-port>/stream/18254938455ea9d58931e4
 
 Behavior:
 
-- If the client `User-Agent` contains `vavoo`, the proxy responds with a redirect to the resolved stream URL.
-- For other clients, the proxy mode stays active and fetches the resolved stream and forwards it directly. This is useful for players that do not support playlist `User-Agent` piping.
+- The proxy resolves the upstream stream URL and forwards the stream directly.
+- HLS playlists are rewritten so variant playlists, keys, maps, and media segments keep flowing through the local proxy.
+- Upstream TLS certificate validation is disabled because Vavoo currently returns invalid certificates.
+- With `--redirect`, clients whose `User-Agent` contains `vavoo` are redirected to the resolved upstream URL.
